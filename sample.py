@@ -41,7 +41,7 @@ AST_MIN_SCALE = 1.1 #If and asteroid is smaller than this and is hit,
                     #it disapears instead of splitting up
 BALL_INIT_SCALE=1
 BOARD_INIT_SCALE=4
-
+SCORE=0
 #dt=0
 def genLabelText(text, i):
   return OnscreenText(text = text, pos = (-1.3, .95-.05*i), fg=(1,1,0,1),
@@ -55,6 +55,7 @@ def loadObject(tex = None, pos = Point2(0,0), depth = SPRITE_POS, scale = 1,
   obj.reparentTo(camera)              #Everything is parented to the camera so
                                       #that it faces the screen
   obj.setPos(Point3(pos.getX(), depth, pos.getY())) #Set initial position
+  
   obj.setScale(scale)                 #Set initial scale
   obj.setBin("unsorted", 0)           #This tells Panda not to worry about the
                                       #order this is drawn in. (it prevents an
@@ -77,9 +78,10 @@ class World(DirectObject):
                               style=1, fg=(1,1,0,1),
                               pos=(0.8,-0.95), scale = .07)
     self.escapeText =   genLabelText("ESC: Quit", 0)
-    self.leftkeyText =  genLabelText("[Left Arrow]: Move Left (CCW)", 1)
-    self.rightkeyText = genLabelText("[Right Arrow]: Move Right (CW)", 2)
+    self.leftkeyText =  genLabelText("[Left Arrow]: Move Left", 1)
+    self.rightkeyText = genLabelText("[Right Arrow]: Move Right", 2)
     self.spacekeyText = genLabelText("[Space Bar]: Fire Ball", 3)
+    
 
     self.keys = {"turnLeft" : 0, "turnRight": 0,
                  "accel": 0, "fire": 0}
@@ -98,20 +100,22 @@ class World(DirectObject):
     self.bg = loadObject("stars", scale = 146, depth = 200,
                          transparency = False) #Load the background starfield
 
-    self.ship = loadObject("boardfinal",pos=Point2(0,-13),scale=BOARD_INIT_SCALE)
+    # self.ship = loadObject("boardfinal",pos=Point2(0,-13),scale=BOARD_INIT_SCALE)
     
-    self.ball = loadObject("ball",pos=Point2(0,-10),scale=BALL_INIT_SCALE)
-    self.setVelocity(self.ball, Vec3(0,0,0))    #Initial velocity
-    self.bricks=[]
-    for i in range(-18,19,2):
-      for j in range(8,12,1):
-        self.bricks.append(loadObject("brickfinal",pos=Point2(i,j),scale=BRI_INIT_SCALE))
-    #As described earlier, this simply sets a key in the self.keys dictionary to
+    # self.ball = loadObject("ball",pos=Point2(0,-10),scale=BALL_INIT_SCALE)
+    # self.setVelocity(self.ball, Vec3(0,0,0))    #Initial velocity
+    # self.bricks=[]
+    # for i in range(-18,19,2):
+    #   for j in range(8,12,1):
+    #     self.bricks.append(loadObject("brickfinal",pos=Point2(i,j),scale=BRI_INIT_SCALE))
+    # #As described earlier, this simply sets a key in the self.keys dictionary to
     #self.setExpires(self.ball,0)
 
     self.alive=True
     #the given value
-    self.gameTask = taskMgr.add(self.gameLoop, "gameLoop")  
+    self.gameTask = taskMgr.add(self.flush_new, "flush")  
+    print "End game"
+    
     self.gameTask.last = 0         #Task time of the last frame
   def setExpires(self, obj, val):
       obj.setTag("expires", str(val))
@@ -132,12 +136,18 @@ class World(DirectObject):
       #If the ship is not alive, do nothing. Tasks return Task.cont to signify
       #that the task should continue running. If Task.done were returned instead,
       #the task would be removed and would no longer be called every frame
-      if not self.alive: return Task.cont
+      if self.alive==False: 
+        print "task done"
+        taskMgr.remove('gameLoop')
+
+        taskMgr.add(self.flush_new,'flush')
+        #return Task.done
       #print "inside task"
       #update ship position
       self.updateShip(dt)
       heading_r = self.ball.getR()
       global TURN_RATE
+      global SCORE
       if self.keys["fire"]:
           heading_r = dta * TURN_RATE
           #self.ball.setR(heading_r %360)
@@ -162,10 +172,10 @@ class World(DirectObject):
         self.alive=False
         self.title = OnscreenText(text="You Win",
                               style=1, fg=(1,1,0,1),
-                              pos=(0,0), scale = .07)
+                              pos=(0,0), scale = .1)
 
 
-      for i in range(len(self.bricks)-1, 0, -1):
+      for i in range(len(self.bricks)-1, -1, -1):
         #Panda's collision detection is more complicated than we need here.
         #This is the basic sphere collision check. If the distance between
         #the object centers is less than sum of the radii of the two objects,
@@ -176,15 +186,22 @@ class World(DirectObject):
               * .5 ) ** 2)):
           self.bricks[i].remove()   
           self.bricks = self.bricks[:i]+self.bricks[i+1:]
+          SCORE+=1
+          self.spacekeyText.destroy()
+          #self.spacekeyText = genLabelText("SCORE:"+str(SCORE), )
+          self.spacekeyText=OnscreenText(text="SCORE:"+str(SCORE),
+                                        style=1, fg=(1,1,0,1),
+                                        pos=(0.8,0.90), scale = .1)
           #print TURN_RATE
-          
-          if TURN_RATE>=0 and TURN_RATE<=90:
+          if TURN_RATE==90 or TURN_RATE==-90 or TURN_RATE==0 or TURN_RATE==180 or TURN_RATE==-180:
+            TURN_RATE=randint(30,60)
+          elif TURN_RATE>0 and TURN_RATE<90:
             TURN_RATE=90+TURN_RATE
-          elif TURN_RATE<0 and TURN_RATE>=-90:
+          elif TURN_RATE<0 and TURN_RATE>-90:
             TURN_RATE-=90
-          elif TURN_RATE>90 and TURN_RATE<=180:
+          elif TURN_RATE>90 and TURN_RATE<180:
             TURN_RATE-=90
-          elif TURN_RATE<-90 and TURN_RATE>=-180:
+          elif TURN_RATE<-90 and TURN_RATE>-180:
             TURN_RATE=90
           #print TURN_RATE
           break
@@ -198,7 +215,7 @@ class World(DirectObject):
       if ((self.ball.getPos() - self.ship.getPos()).lengthSquared() <
           (((self.ball.getScale().getX() + self.ship.getScale().getX())
             * .5 ) ** 2)):
-        print TURN_RATE
+        #print TURN_RATE
         if TURN_RATE==90 or TURN_RATE==-90 or TURN_RATE==0 or TURN_RATE==180 or TURN_RATE==-180:
           TURN_RATE=randint(30,60)
         elif TURN_RATE>90 and TURN_RATE<180:
@@ -207,14 +224,14 @@ class World(DirectObject):
           TURN_RATE+=180
         else:
           TURN_RATE=-TURN_RATE
-        print TURN_RATE
+        #print TURN_RATE
       self.updatePos(self.ball, dt)
       return Task.cont
 
 
   def setKey(self, key, val):
    # self.bricks[0].remove()
-    print "set_key"
+    #print "set_key"
     self.keys[key] = val
     dt=0.3
 
@@ -279,7 +296,9 @@ class World(DirectObject):
       if newPos.getX() - radius > SCREEN_X-1: 
         #print TURN_RATE
         #newPos.setZ(SCREEN_Y)
-        if TURN_RATE>=0 and TURN_RATE<=90:
+        if TURN_RATE==90 or TURN_RATE==-90 or TURN_RATE==0 or TURN_RATE==180 or TURN_RATE==-180:
+          TURN_RATE=randint(30,60)
+        elif TURN_RATE>0 and TURN_RATE<90:
           TURN_RATE=-TURN_RATE
 
         elif TURN_RATE>90 and TURN_RATE<=180:
@@ -288,7 +307,9 @@ class World(DirectObject):
       elif newPos.getX() + radius < -SCREEN_X+1:
         #print "updatePos elif of X %d" %TURN_RATE
         #newPos.setX(SCREEN_X)
-        if TURN_RATE<=0 and TURN_RATE>=-90:
+        if TURN_RATE==90 or TURN_RATE==-90 or TURN_RATE==0 or TURN_RATE==180 or TURN_RATE==-180:
+          TURN_RATE=randint(30,60)
+        elif TURN_RATE<0 and TURN_RATE>-90:
           #TURN_RATE=90+TURN_RATE
           TURN_RATE=-TURN_RATE
         elif TURN_RATE<-90 and TURN_RATE>=-180:
@@ -298,10 +319,12 @@ class World(DirectObject):
       if newPos.getZ() - radius > SCREEN_Y-1: 
         #print "updatePos if of Y"
         #newPos.setZ(-SCREEN_Y)
-        if TURN_RATE>=0 and TURN_RATE<=90:
+        if TURN_RATE==90 or TURN_RATE==-90 or TURN_RATE==0 or TURN_RATE==180 or TURN_RATE==-180:
+          TURN_RATE=randint(30,60)
+        elif TURN_RATE>0 and TURN_RATE<90:
           #TURN_RATE=TURN_RATE+90
           TURN_RATE=180-TURN_RATE
-        elif TURN_RATE<=0 and TURN_RATE>=-90:
+        elif TURN_RATE<0 and TURN_RATE>-90:
           #TURN_RATE-=90
           TURN_RATE=TURN_RATE-90
           #TURN_RATE+=180
@@ -313,12 +336,55 @@ class World(DirectObject):
         self.alive=False
         self.title = OnscreenText(text="Game Over",
                               style=1, fg=(1,1,0,1),
-                              pos=(0,0), scale = .07)
+                              pos=(0,0), scale = .1)
+        #self.gameTask = taskMgr.add(self.gameLoop, "gameLoop")  
+     #   print "done"
+        
+        # self.gameTask = taskMgr.add(self.gameLoop, "gameLoop")  
+        
 
       obj.setPos(newPos)
+  def flush_new(self, task):
+    print "inside flush"
+    #self.ship.remove()
+    #self.ball.remove()
+    #for i in range(0,len(self.bricks)):
+     # self.bricks[i].remove()
+    print "Enter Name:"
+    name=raw_input()
+    print name
+    global SCORE
+    global bricks
+    SCORE=0
+   
+    
+    self.ship = loadObject("boardfinal",pos=Point2(0,-13),scale=BOARD_INIT_SCALE)
+    
+    self.ball = loadObject("ball",pos=Point2(0,-10),scale=BALL_INIT_SCALE)
+    self.setVelocity(self.ball, Vec3(0,0,0))    #Initial velocity
+    self.bricks=[]
+    for i in range(-18,19,2):
+      for j in range(8,12,1):
+        self.bricks.append(loadObject("brickfinal",pos=Point2(i,j),scale=BRI_INIT_SCALE))
+    #As described earlier, this simply sets a key in the self.keys dictionary to
+    #self.setExpires(self.ball,0)
+
+    self.alive=True
+    #the given value
+    taskMgr.remove('flush')
+    self.title.destroy()
+    self.keys['fire']=0
+    self.gameTask = taskMgr.add(self.gameLoop, "gameLoop")  
 
  
 
 
+
+
+
 w = World()
 run()
+print "destroyed"
+w.destroy()
+# w = World()
+# run()
